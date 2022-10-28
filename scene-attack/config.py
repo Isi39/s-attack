@@ -1,9 +1,9 @@
 import os
-argo_path = "/work/vita/datasets/argoverse/argoverse-api/"
-lanegcn_model_weights_path = "./36.000.ckpt"
+argo_path = "/home/ikisa/Documents/MScThesis/argoverse-api/forecasting_val_v1.1/"
+lanegcn_model_weights_path = "/home/ikisa/Documents/MScThesis/laneGCN/36.000.ckpt"
 datf_model_weights_path = "/home/mshahver/CMU-code/code/experiment/attgscam.argo"
 wimp_model_weights_path = "/home/mshahver/rl-scene-attack/attackedmodels/WIMP_master/experiments/example2/checkpoints/"
-argo_preprocessed_data_path = "/scratch/izar/mshahver/val_crs_dist6_angle90.p"
+argo_preprocessed_data_path = "/home/ikisa/Documents/MScThesis/laneGCN/val_crs_dist6_angle90.p"
 argo_val_preprocessed_data_path = "/scratch/izar/mshahver/val_crs_dist6_angle90.p"
 syn_data_train_path = "/scratch/izar/mshahver/train_data_full.pkl"
 syn_data_val_path = "/scratch/izar/mshahver/val_data_full.pkl"

@@ -1,11 +1,12 @@
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 import os
 import random
 
 
-def viz_scenario(lane_centerlines, agents_trajs_skewed, agent_gt, agent_prediction, save_addr, rot, orig, save=True,
+def viz_scenario(lane_centerlines, agents_trajs_skewed, agent_gt, agent_prediction, save_addr, rot, orig, n_trajectory, save=True,
                  x_radius=50, y_radius=50, legend=True, show_agents=True, ruler=True):
     # fig, ax = plt.subplots()
     if legend:
@@ -90,23 +91,32 @@ def viz_scenario(lane_centerlines, agents_trajs_skewed, agent_gt, agent_predicti
         zorder=0,
     )
     plt.arrow(agent_gt[-2, 0], agent_gt[-2, 1], agent_gt[-1, 0] - agent_gt[-2, 0],
-              agent_gt[-1, 1] - agent_gt[-2, 1], color=color_dict["AGENT_GT"], width=0.4)
+              agent_gt[-1, 1] - agent_gt[-2, 1], color=color_dict["AGENT_GT"], width=0.2)
+    circle_gt = plt.Circle((agent_gt[-1, 0], agent_gt[-1, 1]), radius=0.2, color='#069AF3')
+    plt.gca().add_patch(circle_gt)
 
-    plt.plot(
-        agent_prediction[:, 0],
-        agent_prediction[:, 1],
-        "-",
-        color=color_dict["AGENT_PRED"],
-        label='Prediction',
-        alpha=1,
-        linewidth=2,
-        zorder=0,
-    )
-    plt.arrow(agent_prediction[-2, 0], agent_prediction[-2, 1], agent_prediction[-1, 0] - agent_prediction[-2, 0],
-              agent_prediction[-1, 1] - agent_prediction[-2, 1], color=color_dict["AGENT_PRED"], width=0.4)
+    color_map = mpl.cm.get_cmap('hsv', n_trajectory+1)
+    max_cls = max([x[1] for x in agent_prediction])
+    for idx, (reg, cls) in enumerate(agent_prediction):
+        if idx < n_trajectory:
+            label = "%.1f (%.4f)" % (1.0, cls) if idx == 0 else "%.4f" % round(cls/max_cls, 4)
+            plt.plot(
+                reg[:, 0],
+                reg[:, 1],
+                "-",
+                color=color_map(idx),
+                label=label,
+                alpha=1,
+                linewidth=2,
+                zorder=0,
+            )
+            plt.arrow(reg[-2, 0], reg[-2, 1], reg[-1, 0] - reg[-2, 0],
+                      reg[-1, 1] - reg[-2, 1], color=color_map(idx), width=0.2)
+            circle_pred = plt.Circle((reg[-1, 0],reg[-1, 1]), radius=0.2, color=color_map(idx))
+            plt.gca().add_patch(circle_pred)
 
     if legend:
-        plt.legend(loc="lower right", prop={"size": "x-large"})
+        plt.legend(loc="lower right", prop={"size": "small"})
     if ruler:
         plt.plot(np.array([orig[0] - 0.9 * x_radius, orig[0] - 0.7 * x_radius]),
                  np.array([orig[1] - 0.9 * y_radius, orig[1] - 0.9 * y_radius]), color="black", linewidth=3)

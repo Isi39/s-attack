@@ -265,7 +265,9 @@ class SceneAugmentor:
         data = dict(collate_fn([copy.deepcopy(data)]))
         with torch.no_grad():
             output = self.attacking_net(data)
-        self.agent_pred = output["reg"][0][0:1].detach().cpu().numpy().squeeze()[0]
+        # contains trajectory predictions for agent in form of list[tuples] = [(reg1, cls1), (reg2, cls2), ...]
+        self.agent_pred = list(zip(output['reg'][0][0:1].detach().cpu().numpy().squeeze(),
+                                   output['cls'][0][0:1].detach().cpu().numpy().squeeze()))
 
     def correct_history(self, history):  # inputs history points in the agents coordinate system and corrects its speed   
         # calculating the minimum r of the attacking turn
@@ -275,7 +277,7 @@ class SceneAugmentor:
         l_range = min(border1, border2, border3)
         r_range = max(border1 + 10, border2 + 20 + self.attack_params["double-turn"]["l"],
                       border3 + self.attack_params["ripple-road"]["l"])
-
+        
         search_points = np.linspace(l_range, r_range, 100)
         search_point_rs = self.calc_radius(search_points)
         min_r = search_point_rs.min()
@@ -549,8 +551,10 @@ class SceneAugmentor:
         :return: reward of the current state as int
         """
         if self.models_name in ["LaneGCN", "MPC"]:
+            # get trajectory with highest cls
+            agent_pred = self.agent_pred[0][0]
             # project these predictions to the space before transformation
-            real_pred_points = np.matmul(self.data['rot'], (self.agent_pred - self.data['orig'].reshape(-1, 2)).T).T
+            real_pred_points = np.matmul(self.data['rot'], (agent_pred - self.data['orig'].reshape(-1, 2)).T).T
             real_pred_points = self.apply_inverse_transform_function(real_pred_points)
             real_pred_points = np.matmul(self.data['rot'].T, real_pred_points.T).T + self.data['orig'].reshape(-1, 2)
 
@@ -582,8 +586,33 @@ class SceneAugmentor:
             SOR = best_SOR
             HOR = best_HOR
         return SOR, HOR
+    
+    def calc_displacement_errors(self, n_trajectory, all_traj=False):
+        gt_pred = self.data['gt_preds'][0] # gt for agent
+        if all_traj:
+            agent_preds = [pred[0] for idx, pred in enumerate(self.agent_pred) if idx < n_trajectory]
+        else:
+            agent_preds = [self.agent_pred[0][0]]
+            
+        ade_list = []
+        fde_list = []
+        len_traj = self.agent_pred[0][0].shape[0] # len_traj = 30
+        # calc ADE/FDE's
+        for pred in agent_preds:
+            error = np.sqrt(np.sum((pred-gt_pred)**2, axis=1))
+            fde_list.append(error[len_traj-1])
+            error = np.sum(error)/len_traj
+            ade_list.append(error)
+            
+        ade = sum(ade_list)/len(agent_preds)
+        fde = sum(fde_list)/len(agent_preds)
+        min_fde_idx = np.argmin(fde_list)
+        min_fde = fde_list[min_fde_idx]
+        min_ade = ade_list[min_fde_idx]
+        
+        return ade, fde, min_ade, min_fde
 
-    def attack(self, id, params, save_addr=None):
+    def attack(self, id, params, save_addr=None, n_trajectory=1):
         """
         given the scenario id and transformation parameters as input, applies the corresponding transformation on the
         given scenario and calculates model's offroads on this new scenario.
@@ -600,17 +629,18 @@ class SceneAugmentor:
         self.get_scenario()
 
         offroad = self.calc_offroad()
-
+        displ_error = self.calc_displacement_errors(n_trajectory, all_traj=True)
+        
         if self.visualize:
-            self.render(save_addr)
-        return offroad
+            self.render(save_addr, n_trajectory)
+        return offroad, displ_error
 
-    def render(self, save_addr):
+    def render(self, save_addr, n_trajectory):
         """
         Saves the figure of the current scenario
         :return: nothing! :D
         """
-
+        
         idx = self.scenario_idx
 
         for i, gt_pred in enumerate(self.data['gt_preds']):
@@ -651,7 +681,7 @@ class SceneAugmentor:
             agents_trajs_skewed.append(traj_corrected)
 
         viz_scenario(self.lane_centerlines, agents_trajs_skewed, self.data['gt_preds'][0],
-                     self.agent_pred, save_addr, self.data['rot'], self.data['orig'])
+                     self.agent_pred, save_addr, self.data['rot'], self.data['orig'], n_trajectory)
     
     def setVisualize(self, vis):
         self.visualize = vis
